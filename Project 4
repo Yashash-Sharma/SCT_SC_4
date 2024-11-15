@@ -1,0 +1,59 @@
+import time
+import csv
+import argparse
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+
+def main(url, output_file, headless=True):
+    chrome_options = Options()
+    if headless:
+        chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+
+    try:
+        driver.get(url)
+        time.sleep(2)
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
+
+        title = soup.find("span", {"id": "productTitle"}).text.strip() if soup.find("span", {"id": "productTitle"}) else "N/A"
+        price = soup.find("span", {"class": "a-price"}).find("span").text.strip() if soup.find("span", {"class": "a-price"}) else "N/A"
+        rating = soup.find("span", {"class": "a-icon-alt"}).text.strip() if soup.find("span", {"class": "a-icon-alt"}) else "N/A"
+
+        product_details = {
+            'Title': title,
+            'Price': price,
+            'Rating': rating
+        }
+
+        with open(output_file, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=product_details.keys())
+            writer.writeheader()
+            writer.writerow(product_details)
+
+        print(f"Product details successfully saved to {output_file}")
+
+    except Exception as e:
+        print(e)
+
+    finally:
+        driver.quit()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Scrape product details from Amazon.')
+    parser.add_argument('url', type=str, help='The URL of the product page')
+    parser.add_argument('output_file', type=str, help='The name of the output file')
+
+    args = parser.parse_args()
+
+    if not args.output_file.endswith('.csv'):
+        args.output_file += '.csv'
+
+    main(args.url, args.output_file)
